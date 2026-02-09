@@ -52,13 +52,15 @@ export default async function handler(req, res) {
       
       const results = await rapidRequest(`/search?q=${encodeURIComponent(query)}&type=multi&limit=5`);
       
-      if (!results.tracks || results.tracks.length === 0) {
+      const tracks = results.data?.tracks?.items || [];
+      
+      if (tracks.length === 0) {
         await sendMessage(message.chat.id, 'Ничего не нашлось. Попробуй другое название.');
         return res.status(200).send('OK');
       }
 
-      const buttons = results.tracks.map(track => ([{
-        text: `🎵 ${track.name} - ${track.artists.map(a => a.name).join(', ')}`,
+      const buttons = tracks.map(track => ([{
+        text: `🎵 ${track.name} - ${track.artists.items.map(a => a.profile.name).join(', ')}`,
         callback_data: `dl:${track.id}`
       }]));
 
@@ -77,12 +79,11 @@ export default async function handler(req, res) {
         
         await sendMessage(chatId, '⏳ Подготавливаю файл...');
         
-        // Use downloadSong endpoint
-        // The API might expect the full URL or just the ID. Based on snippet, it's a URL or ID.
         const dlResult = await rapidRequest(`/downloadSong?songId=${trackId}`);
+        const trackData = dlResult.data;
         
-        if (dlResult.downloadLink) {
-          await sendAudio(chatId, dlResult.downloadLink, dlResult.title, dlResult.artist);
+        if (trackData && trackData.downloadLink) {
+          await sendAudio(chatId, trackData.downloadLink, trackData.title, trackData.artist);
         } else {
           await sendMessage(chatId, 'Ошибка при получении ссылки на скачивание. 🗿');
         }
