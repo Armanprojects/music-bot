@@ -30,13 +30,18 @@ export default async function handler(req, res) {
 
   // Helper: RapidAPI Request
   const rapidRequest = async (endpoint) => {
-    const response = await fetch(`https://${rapidApiHost}${endpoint}`, {
-      headers: {
-        'x-rapidapi-key': rapidApiKey,
-        'x-rapidapi-host': rapidApiHost,
-      },
-    });
-    return response.json();
+    try {
+      const response = await fetch(`https://${rapidApiHost}${endpoint}`, {
+        headers: {
+          'x-rapidapi-key': rapidApiKey,
+          'x-rapidapi-host': rapidApiHost,
+        },
+      });
+      return await response.json();
+    } catch (err) {
+      console.error('Fetch error:', err);
+      return { error: err.message };
+    }
   };
 
   try {
@@ -52,19 +57,29 @@ export default async function handler(req, res) {
       
       const results = await rapidRequest(`/search?q=${encodeURIComponent(query)}&type=multi&limit=5`);
       
-      console.log('API Response:', JSON.stringify(results, null, 2));
-      
-      const tracks = results.data?.tracks?.items || results.tracks?.items || [];
+      // LOG FOR VERCEL
+      console.log('Results keys:', Object.keys(results));
+      if (results.data) console.log('Data keys:', Object.keys(results.data));
+
+      // Try all possible paths for tracks
+      const tracks = results.data?.tracks?.items || results.tracks?.items || results.items || [];
       
       if (tracks.length === 0) {
-        await sendMessage(message.chat.id, 'Ничего не нашлось. Попробуй другое название.');
+        let errorMsg = 'Ничего не нашлось. Попробуй другое название.';
+        if (results.message) errorMsg += `\n(API Error: ${results.message})`;
+        if (results.error) errorMsg += `\n(System Error: ${results.error})`;
+        
+        await sendMessage(message.chat.id, errorMsg);
         return res.status(200).send('OK');
       }
 
-      const buttons = tracks.map(track => ([{
-        text: `🎵 ${track.name} - ${track.artists.items.map(a => a.profile.name).join(', ')}`,
-        callback_data: `dl:${track.id}`
-      }]));
+      const buttons = tracks.map(track => {
+        const artistName = track.artists?.items ? track.artists.items.map(a => a.profile?.name || a.name).join(', ') : 'Unknown';
+        return [{
+          text: `🎵 ${track.name} - ${artistName}`,
+          callback_data: `dl:${track.id}`
+        }];
+      });
 
       await sendMessage(message.chat.id, 'Выбери трек для загрузки:', {
         reply_markup: { inline_keyboard: buttons }
