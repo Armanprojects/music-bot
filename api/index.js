@@ -52,7 +52,9 @@ export default async function handler(req, res) {
       
       const results = await rapidRequest(`/search?q=${encodeURIComponent(query)}&type=multi&limit=5`);
       
-      const tracks = results.data?.tracks?.items || [];
+      console.log('API Response:', JSON.stringify(results, null, 2));
+      
+      const tracks = results.data?.tracks?.items || results.tracks?.items || [];
       
       if (tracks.length === 0) {
         await sendMessage(message.chat.id, 'Ничего не нашлось. Попробуй другое название.');
